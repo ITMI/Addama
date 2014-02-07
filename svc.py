@@ -36,6 +36,8 @@ from storage.mongo import MongoDbStorageHandler, GetUserinfo
 from storage.collections import MongoDbCollectionsHandler
 from scc.github import GitWebHookHandler
 
+from tabix.tabix_lookup import TabixLookupHandler
+
 define("data_path", default="../..", help="Path to data files")
 define("port", default=8000, help="run on the given port", type=int)
 define("client_host", default="http://localhost:8000", help="Client URL for Google OAuth2")
@@ -58,6 +60,9 @@ define("github_git_cmd", help="Path to git executable", default="git")
 define("github_branches_json_path", help="Path to publish branches json", default=".")
 
 define("verbose", default=False, type=bool, help="Enable verbose printouts")
+
+define("tabix_executable", default="tabix", help="Tabix executable")
+define("tabix_lookups", default={}, help="Tabix lookups configurations")
 
 settings = {
     "debug": True,
@@ -136,6 +141,17 @@ def parse_datastore_configuration():
 
     return datastore_map
 
+def parse_tabix_lookup_configuration():
+    tabix_file_map = {}
+    for tabix_id, config in options.tabix_lookups.iteritems():
+        if len(config.keys()) == 0:
+            logging.warn("Tabix lookup \'" + tabix_id + "\' disabled - empty configuration.")
+        else:
+            tabix_file_map[tabix_id] = config
+            logging.info("Tabix lookup \'" + tabix_id + "\' enabled.")
+    
+    return tabix_file_map
+
 def main():
     options.parse_command_line()
     if not options.config_file is None:
@@ -173,6 +189,8 @@ def main():
     if not options.config_file_json is None:
         MongoDbQueryHandler.datastores_config = json.load(open(options.config_file_json))
 
+    TabixLookupHandler.tabix_file_map = parse_tabix_lookup_configuration()
+
     application = tornado.web.Application([
         (r"/", MainHandler),
         (r"/auth/signin/google", GoogleOAuth2Handler),
@@ -185,6 +203,8 @@ def main():
         (r"/data?(.*)", LocalFileHandler),
         (r"/storage/(.*)", MongoDbStorageHandler),
         (r"/collections/(.*)", MongoDbCollectionsHandler),
+        (r"/tabix/(\w+)/(X|Y|M|\d{1,2})/(\d+)", TabixLookupHandler),
+        (r"/tabix/(\w+)/(X|Y|M|\d{1,2})/(\d+)/(\d+)", TabixLookupHandler),
         (r"/gitWebHook?(.*)", GitWebHookHandler)
     ], **settings)
     application.listen(options.port, **server_settings)

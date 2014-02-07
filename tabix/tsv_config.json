@@ -1,0 +1,6 @@
+{
+    "test": {
+        "type": "tsv",
+        "path": "/Users/kleinone/projects/SeqPeekApp/importdata/variants/out3.bgz"
+    }  
+}
