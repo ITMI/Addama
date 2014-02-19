@@ -347,17 +347,18 @@ def tabix_query_variant(seqObj):
 
         local_result = {}
         local_result['base_change'] = variant
-        local_result['coordinate'] = coordinate
+        local_result['coordinate'] = int(coordinate)
         local_result['uniprot'] = uniprot
         local_result['protein_change'] = protein_change
-        local_result['statistics'] = []
+        local_result['statistics'] = {}
+        
         for feature in features:
             control_print("feature is "+feature)
             local_statistic = {}
-            local_statistic['feature_id'] = feature
+            
             for count_type in counter[composite_key][feature]:
                 local_statistic[count_type] = len(counter[composite_key][feature][count_type])
-            local_result['statistics'].append(local_statistic)
+            local_result['statistics'][feature] = local_statistic
         control_pprint(local_result)
         transcripts[transcript]['variants'].append(local_result)
 
