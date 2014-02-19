@@ -37,6 +37,7 @@ from storage.collections import MongoDbCollectionsHandler
 from scc.github import GitWebHookHandler
 
 from tabix.tabix_lookup import TabixLookupHandler
+from tabix.seqpeek_data_lookup import SeqPeekDataHandler
 
 define("data_path", default="../..", help="Path to data files")
 define("port", default=8000, help="run on the given port", type=int)
@@ -63,6 +64,7 @@ define("verbose", default=False, type=bool, help="Enable verbose printouts")
 
 define("tabix_executable", default="tabix", help="Tabix executable")
 define("tabix_lookups", default={}, help="Tabix lookups configurations")
+define("seqpeek_data_lookups", default={}, help="SeqPeek data lookups configurations")
 
 settings = {
     "debug": True,
@@ -152,6 +154,19 @@ def parse_tabix_lookup_configuration():
     
     return tabix_file_map
 
+
+def parse_seqpeek_data_configuration():
+    seqpeek_data_map = {}
+    for seqpeek_data_id, config in options.seqpeek_data_lookups.iteritems():
+        if len(config.keys()) == 0:
+            logging.warn("SeqPeek data lookup \'" + seqpeek_data_id + "\' disabled - empty configuration.")
+        else:
+            seqpeek_data_map[seqpeek_data_id] = config
+            logging.info("SeqPeek data lookup \'" + seqpeek_data_id + "\' enabled.")
+    
+    return seqpeek_data_map
+
+
 def main():
     options.parse_command_line()
     if not options.config_file is None:
@@ -191,6 +206,8 @@ def main():
 
     TabixLookupHandler.tabix_file_map = parse_tabix_lookup_configuration()
 
+    SeqPeekDataHandler.seqpeek_data_map = parse_seqpeek_data_configuration()
+    
     application = tornado.web.Application([
         (r"/", MainHandler),
         (r"/auth/signin/google", GoogleOAuth2Handler),
@@ -205,6 +222,7 @@ def main():
         (r"/collections/(.*)", MongoDbCollectionsHandler),
         (r"/tabix/(\w+)/(X|Y|M|\d{1,2})/(\d+)", TabixLookupHandler),
         (r"/tabix/(\w+)/(X|Y|M|\d{1,2})/(\d+)/(\d+)", TabixLookupHandler),
+        (r"/seqpeek_data/(.*)", SeqPeekDataHandler),
         (r"/gitWebHook?(.*)", GitWebHookHandler)
     ], **settings)
     application.listen(options.port, **server_settings)
