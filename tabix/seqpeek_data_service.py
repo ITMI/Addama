@@ -306,6 +306,8 @@ def tabix_query_variant(seqObj):
         
     control_pprint(counter)
     results = {}
+    transcripts = {}
+
     for composite_key in counter:
         split_key = composite_key.split('\t')
         chromosome = split_key[0]
@@ -315,12 +317,16 @@ def tabix_query_variant(seqObj):
         variant = split_key[4]
         uniprot = split_key[5]
         protein_change = split_key[6]
+
+        
         if gene_name not in results:
             results[gene_name] = {}
-        if transcript not in results[gene_name]:
-            results[gene_name][transcript] = {}
-        if 'variants' not in results[gene_name][transcript]:
-            results[gene_name][transcript]['variants'] = []
+
+        if transcript not in transcripts:
+            transcripts[transcript] = {}
+
+        if 'variants' not in transcripts[transcript]:
+            transcripts[transcript]['variants'] = []
 
         # add the global results if they're not already there
         if 'start' not in results[gene_name]:
@@ -328,12 +334,14 @@ def tabix_query_variant(seqObj):
             if gene_name in gene_info:
                 control_print("gene info")
                 control_pprint(gene_info)
+
                 results[gene_name]['chromosome'] = gene_info[gene_name][transcript]['chromosome']
                 results[gene_name]['start'] = gene_info[gene_name][transcript]['start']
                 results[gene_name]['stop'] = gene_info[gene_name][transcript]['stop']
                 results[gene_name]['strand'] = gene_info[gene_name][transcript]['strand']
                 results[gene_name]['exon_starts'] = gene_info[gene_name][transcript]['exon_starts']
                 results[gene_name]['exon_stops'] = gene_info[gene_name][transcript]['exon_stops']
+
                 control_print("results")
                 control_pprint(results)
 
@@ -351,7 +359,9 @@ def tabix_query_variant(seqObj):
                 local_statistic[count_type] = len(counter[composite_key][feature][count_type])
             local_result['statistics'].append(local_statistic)
         control_pprint(local_result)
-        results[gene_name][transcript]['variants'].append(local_result)
+        transcripts[transcript]['variants'].append(local_result)
+
+    results[gene_name]['transcripts'] = transcripts
 
     control_print("results")
     control_pprint(results)
