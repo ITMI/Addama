@@ -279,6 +279,7 @@ def tabix_query_variant(seqObj):
                                 'transcript',
                                 'variant',
                                 'type',
+                                'uniprot_id',
                                 'protein_change']
         
         composite_key = "\t".join([(lambda key: row[key])(key) for key in composite_key_fields])
@@ -315,8 +316,9 @@ def tabix_query_variant(seqObj):
         gene_name = split_key[2]
         transcript = split_key[3]
         variant = split_key[4]
-        uniprot = split_key[5]
-        protein_change = split_key[6]
+        variant_type = split_key[5]
+        uniprot = split_key[6]
+        protein_change = split_key[7]
 
         
         if gene_name not in results:
@@ -350,6 +352,7 @@ def tabix_query_variant(seqObj):
         local_result['coordinate'] = int(coordinate)
         local_result['uniprot'] = uniprot
         local_result['protein_change'] = protein_change
+        local_result['variant_type'] = variant_type
         local_result['statistics'] = {}
         
         for feature in features:
