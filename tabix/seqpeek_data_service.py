@@ -224,16 +224,38 @@ def get_region_data(seqObj):
         exit()
     seqObj.gene_info = gene_data
 
+def get_features_from_json(seqObj):
+    matrix_datasource_config = seqObj.config['feature_matrix']
+    with open(matrix_datasource_config['path']) as json_file:
+        json_data = json.load(json_file)
+    feature_map = {}
+    sample_ids = json_data['sample_id_array']
+    feature_value_arrays = json_data['feature_value_array']
+    feature_list = json_data['ordered_list']
+    for index, (feature_id, text_name) in zip(xrange(len(feature_list)), feature_list):
+        feature_map[feature_id] = dict(zip(sample_ids, feature_value_arrays[index]))
+
+    seqObj.features = feature_map
+
 # create a mongo connection to the feature_matrix_uri
 # retrieve and store feature results
-def get_features(seqObj):
-    client = create_mongo_connection(seqObj.config['feature_matrix_host'])
-    db = client[seqObj.config['feature_matrix_database']]
-    feature_matrix_collection = db[seqObj.config['feature_matrix_collection']]
+def get_features_from_mongodb(seqObj):
+    matrix_datasource_config = seqObj.config['feature_matrix']
+
+    client = create_mongo_connection(matrix_datasource_config['host'])
+    db = client[matrix_datasource_config['database']]
+    feature_matrix_collection = db[matrix_datasource_config['collection']]
     all_features = {}
     for feature_matrix in feature_matrix_collection.find():
         all_features[feature_matrix["id"]] = feature_matrix["v"]
     seqObj.features = all_features
+
+def get_features(seqObj):
+    matrix_datasource_type = seqObj.config['feature_matrix']['type']
+    if matrix_datasource_type  == 'mongodb':
+        get_features_from_mongodb(seqObj)
+    elif matrix_datasource_type == 'json':
+        get_features_from_json(seqObj)
 
 # create the variants dict
 # query the variants from the variant file
@@ -251,13 +273,15 @@ def tabix_query_variant(seqObj):
     for row in tabix_output.values:
         if not row:
             break
-        composite_key = "\t".join([(lambda key: row[key])(key) for key in ['chr',
-                                                                           'coordinate',
-                                                                           'gene',
-                                                                           'transcript',
-                                                                           'variant',
-                                                                           'type',
-                                                                           'protein_change']])
+        composite_key_fields = ['chr',
+                                'coordinate',
+                                'gene',
+                                'transcript',
+                                'variant',
+                                'type',
+                                'protein_change']
+        
+        composite_key = "\t".join([(lambda key: row[key])(key) for key in composite_key_fields])
         id = row['sample_id']
         zygosity = row['genotype']
         control_print("processing composite_key %s id %s zygosity %s" % (composite_key, id, zygosity))
@@ -373,6 +397,8 @@ def do_gene_query(seq_obj):
     get_region_data(seq_obj)
     get_features(seq_obj)
     return tabix_query_variant(seq_obj)
+    return {}
+
 
 def main():
     mainparser = argparse.ArgumentParser(description="SeqPeekDataService")
