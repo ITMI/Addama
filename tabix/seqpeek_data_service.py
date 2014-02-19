@@ -1,9 +1,7 @@
 import sys
 import argparse
 import json
-from subprocess import check_output
 from pprint import pprint
-#from random import choice
 from pymongo import MongoClient
 from pymongo import ASCENDING
 
@@ -110,12 +108,12 @@ def default_config():
     config = {}
     config['tabix_executable'] = 'tabix'
     config['variant_file'] = "/u5/workspace/dmauldin/SeqPeek/SeqPeekData/variants/out3.bgz"
-    config['region_data_uri'] = "mongodb://bobama.systemsbiology.net"
+    config['region_data_host'] = "mongodb://bobama.systemsbiology.net"
     config['region_data_database'] = "seqpeek_data_service"
-    config['region_data_table'] = 'region_data'
-    config['feature_matrix_uri'] = "mongodb://bobama.systemsbiology.net"
+    config['region_data_collection'] = 'region_data'
+    config['feature_matrix_host'] = "mongodb://bobama.systemsbiology.net"
     config['feature_matrix_database'] = "seqpeek_data_service"
-    config['feature_matrix_table'] = 'feature_matrix'
+    config['feature_matrix_collection'] = 'feature_matrix'
     return SeqPeekResult(config)
 
 def parse_config(seqObj,config_file):
@@ -134,14 +132,14 @@ def create_mongo_connection(uri):
 
 
 def get_gene_info(seqObj):
-    client = create_mongo_connection(seqObj.config['region_data_uri'])
+    client = create_mongo_connection(seqObj.config['region_data_host'])
     db = client[seqObj.config['region_data_database']]
-    region_data_table = db[seqObj.config['region_data_table']]
+    region_data_collection = db[seqObj.config['region_data_collection']]
     gene_data = {}
 
     if seqObj.gene_name and not hasattr(seqObj,'chromosome'):
         control_print("getting information based on gene name")
-        gene_results = region_data_table.find({"gene":str(seqObj.gene_name)}).sort("exonstart",ASCENDING)
+        gene_results = region_data_collection.find({"gene":str(seqObj.gene_name)}).sort("exonstart",ASCENDING)
 
         for gene in gene_results:
             if not hasattr(seqObj,'chromosome'):
@@ -160,9 +158,9 @@ def get_gene_info(seqObj):
 # hash{gene name}{transcript id}
 # keys chromosome, start, stop, strand, exon_starts(array), exon_ends(array)
 def get_region_data(seqObj):
-    client = create_mongo_connection(seqObj.config['region_data_uri'])
+    client = create_mongo_connection(seqObj.config['region_data_host'])
     db = client[seqObj.config['region_data_database']]
-    region_data_table = db[seqObj.config['region_data_table']]
+    region_data_collection = db[seqObj.config['region_data_collection']]
     gene_data = {}
 
     if hasattr(seqObj,'gene_name') and not hasattr(seqObj,'chromosome'):
@@ -186,10 +184,10 @@ def get_region_data(seqObj):
     control_print("calling region_data for chromosome %s start %s end %s" % (seqObj.chromosome, seqObj.start, seqObj.end))
     if (seqObj.full_gene):
         control_print(search_dict_entire_gene)
-        query_results = region_data_table.find(search_dict_entire_gene).sort("exonstart", ASCENDING)
+        query_results = region_data_collection.find(search_dict_entire_gene).sort("exonstart", ASCENDING)
     else:
         control_print(search_dict_exons)
-        query_results = region_data_table.find(search_dict_exons).sort("exonstart", ASCENDING)
+        query_results = region_data_collection.find(search_dict_exons).sort("exonstart", ASCENDING)
     control_pprint(query_results)
     for region_data in query_results:
         control_print(region_data)
@@ -229,11 +227,11 @@ def get_region_data(seqObj):
 # create a mongo connection to the feature_matrix_uri
 # retrieve and store feature results
 def get_features(seqObj):
-    client = create_mongo_connection(seqObj.config['feature_matrix_uri'])
+    client = create_mongo_connection(seqObj.config['feature_matrix_host'])
     db = client[seqObj.config['feature_matrix_database']]
-    feature_matrix_table = db[seqObj.config['feature_matrix_table']]
+    feature_matrix_collection = db[seqObj.config['feature_matrix_collection']]
     all_features = {}
-    for feature_matrix in feature_matrix_table.find():
+    for feature_matrix in feature_matrix_collection.find():
         all_features[feature_matrix["id"]] = feature_matrix["v"]
     seqObj.features = all_features
 
@@ -370,6 +368,11 @@ def example_object():
     example['OR4F5']['NM_001005484']['variants'].append(variants)
     return example
 
+
+def do_gene_query(seq_obj):
+    get_region_data(seq_obj)
+    get_features(seq_obj)
+    return tabix_query_variant(seq_obj)
 
 def main():
     mainparser = argparse.ArgumentParser(description="SeqPeekDataService")
