@@ -363,6 +363,7 @@ def tabix_query_variant(seqObj):
                 local_statistic[count_type] = len(counter[composite_key][feature][count_type])
             local_result['statistics'][feature] = local_statistic
         control_pprint(local_result)
+        transcripts[transcript]['id'] = transcript
         transcripts[transcript]['variants'].append(local_result)
 
     results[gene_name]['transcripts'] = transcripts
