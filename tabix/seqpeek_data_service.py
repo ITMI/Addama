@@ -216,7 +216,7 @@ def get_region_data(seqObj):
             gene_data[gene][mrna]['chromosome'] = chromosome
 
         gene_data[gene][mrna]['exon_starts'].append(start)
-        gene_data[gene][mrna]['exon_stops'].append(start)
+        gene_data[gene][mrna]['exon_stops'].append(stop)
         control_print(gene_data)
     control_print("afterwards gene_data is "+str(gene_data))
     if not gene_data:
@@ -350,7 +350,7 @@ def tabix_query_variant(seqObj):
         local_result = {}
         local_result['base_change'] = variant
         local_result['coordinate'] = int(coordinate)
-        local_result['uniprot'] = uniprot
+        local_result['uniprot_id'] = uniprot
         local_result['protein_change'] = protein_change
         local_result['variant_type'] = variant_type
         local_result['statistics'] = {}
