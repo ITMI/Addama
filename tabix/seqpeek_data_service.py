@@ -111,9 +111,11 @@ def default_config():
     config['region_data_host'] = "mongodb://bobama.systemsbiology.net"
     config['region_data_database'] = "seqpeek_data_service"
     config['region_data_collection'] = 'region_data'
-    config['feature_matrix_host'] = "mongodb://bobama.systemsbiology.net"
-    config['feature_matrix_database'] = "seqpeek_data_service"
-    config['feature_matrix_collection'] = 'feature_matrix'
+    config['feature_matrix'] = {}
+    config['feature_matrix']['host'] = "mongodb://bobama.systemsbiology.net"
+    config['feature_matrix']['database'] = "seqpeek_data_service"
+    config['feature_matrix']['collection'] = 'feature_matrix'
+    config['feature_matrix']['type'] = 'mongodb'
     return SeqPeekResult(config)
 
 def parse_config(seqObj,config_file):
@@ -297,6 +299,8 @@ def tabix_query_variant(seqObj):
             member_id = family_info.pop()
             family_id = ('-').join(family_info)
             # get the feature matrix value of this 
+            if family_id not in features[feature]:
+                next
             #control_print("looking for feature %s id %s in features[feature] %s" % (feature, family_id, features[feature]))
             feature_value = features[feature][family_id] # should be true, false, or na
             #control_print("found feature_value %s for id %s for feature %s" % (feature_value, family_id, feature))
