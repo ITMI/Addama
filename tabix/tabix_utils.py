@@ -5,12 +5,14 @@ import StringIO
 from subprocess import check_output
 
 class MultilineTabixResult():
-    def __init__(self, chromosome, start, end, values, info=None, snpid=None):
+    def __init__(self, chromosome, start, end, values, info=None, snpid=None, ref=None, alt=None):
         self.set_chromosome(chromosome)
         self.set_start(start)
         self.set_end(end)
         self.set_values(values)
         self.set_snpid(snpid)
+        self.set_ref(ref)
+        self.set_alt(alt)
         self.set_info(info)
     
     def get_chromosome(self):
@@ -46,6 +48,24 @@ class MultilineTabixResult():
         else:
             self.snpid = snpid
 
+    def get_ref(self):
+        return self.ref
+    
+    def set_ref(self, ref):
+        if ref == None:
+            self.ref = ""
+        else:
+            self.ref = ref
+
+    def get_alt(self):
+        return self.alt
+    
+    def set_alt(self, alt):
+        if alt == None:
+            self.alt = ""
+        else:
+            self.alt = alt
+            
     def get_info(self):
         return self.info
     
@@ -60,6 +80,8 @@ class MultilineTabixResult():
     end = property(get_end, set_end)
     values = property(get_values, set_values)
     snpid = property(get_snpid, set_snpid)
+    ref = property(get_ref, set_ref)
+    alt = property(get_alt, set_alt)
     info = property(get_info, set_info)
 
 def create_tabix_command(tabix_path, vcf_path, chromosome, start, end):
@@ -70,15 +92,26 @@ def create_tabix_command(tabix_path, vcf_path, chromosome, start, end):
 def parse_vcf_line(row):
     # #CHROM  POS     ID      REF     ALT     QUAL    FILTER  INFO    FORMAT    <values ..... >
     VCF_SNP_ID_COLUMN_INDEX = 2
+    VCF_REF_COLUMN_INDEX = 3
+    VCF_ALT_COLUMN_INDEX = 4
     VCF_INFO_COLUMN_INDEX = 7
     VCF_VALUE_START_INDEX = 9
 
     split_row = row.split('\t')
     chromosome, coordinate = split_row[:2]
     snpid = split_row[VCF_SNP_ID_COLUMN_INDEX]
+    ref = split_row[VCF_REF_COLUMN_INDEX]
+    alt = split_row[VCF_ALT_COLUMN_INDEX]
     info_field = split_row[VCF_INFO_COLUMN_INDEX]
     values = map(lambda x: x.strip(), split_row[VCF_VALUE_START_INDEX:])
-    return MultilineTabixResult(chromosome, coordinate, coordinate, values, info=info_field, snpid=snpid)
+    return MultilineTabixResult(chromosome,
+                                coordinate,
+                                coordinate,
+                                values,
+                                info=info_field,
+                                snpid=snpid,
+                                ref=ref,
+                                alt=alt)
 
 def parse_region_lookup_result(data):
     reader = csv.DictReader(StringIO.StringIO(data), delimiter='\t')
@@ -131,7 +164,6 @@ def triotype_singleline_lookup(tabix_path, tsv_path, chromosome, start_coordinat
 
 def tsv_region_lookup(tabix_path, tsv_path, chromosome, start, end):
     command = create_tabix_command(tabix_path, tsv_path, chromosome, start, end)
-    
     tabix_output = check_output(command.split())
     values = parse_region_lookup_result(tabix_output)
     
