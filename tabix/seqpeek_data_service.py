@@ -300,7 +300,7 @@ def tabix_query_variant(seqObj):
             family_id = ('-').join(family_info)
             # get the feature matrix value of this 
             if family_id not in features[feature]:
-                next
+                continue
             #control_print("looking for feature %s id %s in features[feature] %s" % (feature, family_id, features[feature]))
             feature_value = features[feature][family_id] # should be true, false, or na
             #control_print("found feature_value %s for id %s for feature %s" % (feature_value, family_id, feature))
