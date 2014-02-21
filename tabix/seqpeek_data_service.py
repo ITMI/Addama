@@ -237,7 +237,7 @@ def get_features_from_json(seqObj):
     for index, (feature_id, text_name) in zip(xrange(len(feature_list)), feature_list):
         feature_map[feature_id] = dict(zip(sample_ids, feature_value_arrays[index]))
 
-    seqObj.features = feature_map
+    seqObj.features = feature_map  
 
 # create a mongo connection to the feature_matrix_uri
 # retrieve and store feature results
@@ -300,11 +300,10 @@ def tabix_query_variant(seqObj):
             family_id = ('-').join(family_info)
             # get the feature matrix value of this 
             if family_id not in features[feature]:
-                continue
-            #control_print("looking for feature %s id %s in features[feature] %s" % (feature, family_id, features[feature]))
-            feature_value = features[feature][family_id] # should be true, false, or na
+                feature_value = 'na'
+            else:
+                feature_value = features[feature][family_id] # should be true, false, or na
             #control_print("found feature_value %s for id %s for feature %s" % (feature_value, family_id, feature))
-            #feature_value = choice(possible_values) # mock code for random true/false/na
             if feature_value not in counter[composite_key][feature]:
                 counter[composite_key][feature][feature_value] = []
             counter[composite_key][feature][feature_value].append(id)
