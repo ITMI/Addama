@@ -7,6 +7,8 @@ from pymongo import ASCENDING
 
 import tabix_utils as TU
 
+CHROMOSOME_SET = [str(x) for x in xrange(1, 23)] + list(['M', 'X', 'Y'])
+
 class SeqPeekResult():
     def __init__(self, config):
         self.set_config(config)
@@ -144,8 +146,12 @@ def get_gene_info(seqObj):
         gene_results = region_data_collection.find({"gene":str(seqObj.gene_name)}).sort("exonstart",ASCENDING)
 
         for gene in gene_results:
+            chromosome = gene['chr']
+            if chromosome not in CHROMOSOME_SET:
+                continue
+
             if not hasattr(seqObj,'chromosome'):
-                seqObj.chromosome = gene['chr']
+                seqObj.chromosome = chromosome
             if not hasattr(seqObj,'start'):
                 seqObj.start = gene['txstart']
             if not hasattr(seqObj,'end'):
@@ -323,7 +329,7 @@ def tabix_query_variant(seqObj):
         uniprot = split_key[6]
         protein_change = split_key[7]
 
-        
+
         if gene_name not in results:
             results[gene_name] = {}
 
