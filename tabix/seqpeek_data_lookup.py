@@ -5,8 +5,12 @@ import json
 
 import seqpeek_data_service as sds
 
+sds.local_pprint = logging.debug
+
 class SeqPeekDataHandler(tornado.web.RequestHandler):
     def initialize(self):
+        sds.mDEBUG = options.verbose
+
         self._config_map = self.seqpeek_data_map
 
     def get(self, *uri_path):

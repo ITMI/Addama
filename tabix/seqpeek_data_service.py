@@ -28,46 +28,46 @@ class SeqPeekResult():
         return result+">"
 
     def get_chromosome(self):
-        return self.chromosome
+        return self._chromosome
 
     def set_chromosome(self, chromosome):
-        self.chromosome = chromosome
+        self._chromosome = chromosome
 
     def get_start(self):
-        return self.start
+        return self._start
     
     def set_start(self, start):
-        self.start = int(start)
+        self._start = int(start)
 
     def get_end(self):
-        return self.end
+        return self._end
 
     def set_end(self, end):
-        self.end = int(end)
+        self._end = int(end)
 
     def get_config(self):
-        return self.config
+        return self._config
 
     def set_config(self, config):
-        self.config = config
+        self._config = config
 
     def get_features(self):
-        return self.features
+        return self._features
 
     def set_features(self,features):
-        self.features = features
+        self._features = features
 
-    def get_gene_info(self, gene_info):
-        self.gene_info = gene_info
+    def get_gene_info(self):
+        return self._gene_info
 
     def set_gene_info(self, gene_info):
-        return self.gene_info
+        self._gene_info = gene_info
 
-    def get_full_gene(self, full_gene):
-        self.full_gene = full_gene
+    def get_full_gene(self):
+        return self._full_gene
 
     def set_full_gene(self, full_gene):
-        return self.full_gene
+        self._full_gene = full_gene
 
     chromosome = property(get_chromosome, set_chromosome)
     start = property(get_start, set_start)
@@ -95,17 +95,19 @@ def set_parameters(seqObj, args):
         global mDEBUG
         mDEBUG = 1
 
+def local_pprint(*args):
+    pprint(*args)
+
 # if we want to have this print to log file, can change this function
 def control_print(message):
     global mDEBUG
     if mDEBUG:
-        print("mdebug is "+str(mDEBUG))
-        print(message)
+        local_pprint(message)
 
 def control_pprint(message):
     global mDEBUG
     if mDEBUG:
-        pprint(message)
+        local_pprint(message)
 
 def default_config():
     control_print("default config called")
@@ -231,7 +233,7 @@ def get_region_data(seqObj):
     control_print("afterwards gene_data is "+str(gene_data))
     if not gene_data:
         control_print("Information not found for this region: %s:%s-%s" % (seqObj.chromosome, seqObj.start, seqObj.end))
-        exit()
+
     seqObj.gene_info = gene_data
 
 def get_features_from_json(seqObj):
@@ -386,8 +388,6 @@ def tabix_query_variant(seqObj):
 
     results[gene_name]['transcripts'] = transcripts
 
-    control_print("results")
-    control_pprint(results)
 #    if result.chromosome[3:] != chromosome or result.coordinate != int(coordinate):
 #        errmsg = "Asked for " + str(chromosome) + ":" + str(coordinate) + ", got " + str(result.chromosome) + ":" + str(result.coordinate)
 #        raise Exception(errmsg)
