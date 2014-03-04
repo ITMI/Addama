@@ -1,3 +1,5 @@
+from collections import Counter
+
 import sys
 import argparse
 import json
@@ -258,6 +260,13 @@ def get_features_from_mongodb(seqObj):
         all_features[feature_matrix["id"]] = feature_matrix["v"]
     seqObj.features = all_features
 
+def aggregate_features(seqObj):
+    aggregates = {}
+    for feature_id, value_dict in seqObj.features.iteritems():
+        aggregates[feature_id] = Counter(value_dict.values())
+
+    seqObj.feature_aggregates = aggregates
+
 def get_features(seqObj):
     matrix_datasource_type = seqObj.config['feature_matrix']['type']
     if matrix_datasource_type  == 'mongodb':
@@ -383,6 +392,7 @@ def tabix_query_variant(seqObj):
 #        errmsg = "Asked for " + str(chromosome) + ":" + str(coordinate) + ", got " + str(result.chromosome) + ":" + str(result.coordinate)
 #        raise Exception(errmsg)
 
+    results['_feature_aggregates'] = seqObj.feature_aggregates
     return results
 
 
@@ -420,8 +430,8 @@ def example_object():
 def do_gene_query(seq_obj):
     get_region_data(seq_obj)
     get_features(seq_obj)
+    aggregate_features(seq_obj)
     return tabix_query_variant(seq_obj)
-    return {}
 
 
 def main():
