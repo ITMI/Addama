@@ -188,8 +188,8 @@ def get_region_data(seqObj):
     search_dict_exons = {
                    "chr":str(seqObj.chromosome),
                    "$or":[
-                        {"exonstart":{"$gt": int(seqObj.start), "$lt": int(seqObj.end)}},
-                        {"exonend":  {"$gt": int(seqObj.start),   "$lt": int(seqObj.end)}}
+                        {"exonstart":{"$gte": int(seqObj.start), "$lt": int(seqObj.end)}},
+                        {"exonend":  {"$gte": int(seqObj.start), "$lt": int(seqObj.end)}}
                         ]
                   }
 
@@ -200,9 +200,16 @@ def get_region_data(seqObj):
     else:
         control_print(search_dict_exons)
         query_results = region_data_collection.find(search_dict_exons).sort("exonstart", ASCENDING)
+    control_print("query results are :")
     control_pprint(query_results)
+    resCount = query_results.count()
+    control_print("results number "+str(resCount))
+    if resCount == 0:
+        control_print("No results returned from mongoDB for region: %s:%s-%s" %(seqObj.chromosome, seqObj.start, seqObj.end))
+
     for region_data in query_results:
-        control_print(region_data)
+        control_print("region data is:")
+        control_pprint(region_data)
         gene = region_data['gene']
         mrna = region_data['mrna']
         start = region_data['exonstart']
@@ -382,6 +389,7 @@ def tabix_query_variant(seqObj):
             for count_type in counter[composite_key][feature]:
                 local_statistic[count_type] = len(counter[composite_key][feature][count_type])
             local_result['statistics_by_feature'][feature] = local_statistic
+        control_print("local results is :")
         control_pprint(local_result)
         transcripts[transcript]['id'] = transcript
         transcripts[transcript]['variants'].append(local_result)
@@ -475,6 +483,7 @@ def main():
     else:
         get_region_data(seqObj)
         get_features(seqObj)
+        aggregate_features(seqObj)
         results = tabix_query_variant(seqObj)
         control_print(seqObj)
         control_print("\n\n")
