@@ -1,8 +1,35 @@
-import argparse
 import csv
-import json
 import StringIO
 from subprocess import check_output
+
+def query_description(chromosome, start, end):
+    return "chr" + str(chromosome) + ":" + str(start) + "-" + str(end)
+
+class CoordinateRangeEmptyError(Exception):
+    def __init__(self, chromosome, start, end, msg):
+        self.chromosome = chromosome
+        self.start = start
+        self.end = end
+        self.msg = msg
+    def __str__(self):
+        query = query_description(self.chromosome, self.start, self.end)
+        return "Tabix - empty result. Query " + query + ". Info: " + repr(self.msg)
+
+class WrongLineFoundError(Exception):
+    def __init__(self, chromosome, start, end, msg):
+        self.chromosome = chromosome
+        self.start = start
+        self.end = end
+        self.msg = msg
+    def __str__(self):
+        query = query_description(self.chromosome, self.start, self.end)
+        return "Tabix - wrong line found. Query " + query + ". Info: " + repr(self.msg)
+
+class UnexpectedTabixOutputError(Exception):
+    def __init__(self, msg):
+        self.msg = msg
+    def __str__(self):
+        return "Tabix - unexpected output: " + repr(self.msg)
 
 class MultilineTabixResult():
     def __init__(self, chromosome, start, end, values, info=None, snpid=None, ref=None, alt=None):
@@ -129,6 +156,10 @@ def parse_region_lookup_result(data):
 
     return values
 
+def split_and_remove_empty_lines(data):
+    lines = data.split('\n')
+    return [line for line in lines if line.strip() != '']
+
 def vcf_singleline_lookup(tabix_path, vcf_path, chromosome, start_coordinate, end_coordinate):
     coordinate = start_coordinate
     command = create_tabix_command(tabix_path, vcf_path, chromosome, coordinate, coordinate)
@@ -137,7 +168,7 @@ def vcf_singleline_lookup(tabix_path, vcf_path, chromosome, start_coordinate, en
     result = parse_vcf_line(tabix_output)
     if result.chromosome[3:] != chromosome or result.start != int(coordinate):
         errmsg = "Asked for " + str(chromosome) + ":" + str(coordinate) + ", got " + str(result.chromosome) + ":" + str(result.coordinate)
-        raise Exception(errmsg)
+        raise WrongLineFoundError(start_coordinate, end_coordinate, errmsg)
 
     return result
 
@@ -155,10 +186,18 @@ def triotype_singleline_lookup(tabix_path, tsv_path, chromosome, start_coordinat
     command = create_tabix_command(tabix_path, tsv_path, chromosome, coordinate, coordinate)
     
     tabix_output = check_output(command.split())
+
+    output = split_and_remove_empty_lines(tabix_output)
+    if (len(output) == 0):
+        raise CoordinateRangeEmptyError(chromosome, start_coordinate, end_coordinate, "triotype lookup")
+
+    if (len(output) > 1):
+        raise UnexpectedTabixOutputError("expected 1 line, found " + str(len(output)))
+
     result = parse_triotype_line(tabix_output)
     if result.chromosome[3:] != chromosome or result.start != int(coordinate):
-        errmsg = "Asked for " + str(chromosome) + ":" + str(coordinate) + ", got " + str(result.chromosome) + ":" + str(result.coordinate)
-        raise Exception(errmsg)
+        errmsg = "got " + str(result.chromosome) + ":" + str(result.coordinate) + ", full line \'" + repr(output) + "\'"
+        raise WrongLineFoundError(chromosome, start_coordinate, end_coordinate, errmsg)
 
     return result
 
