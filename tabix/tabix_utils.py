@@ -172,11 +172,24 @@ def vcf_singleline_lookup(tabix_path, vcf_path, chromosome, start_coordinate, en
     coordinate = start_coordinate
     command = create_tabix_command(tabix_path, vcf_path, chromosome, coordinate, coordinate)
     
-    tabix_output = subprocess.check_output(command.split())
+    tabix_output = None
+
+    try:
+        tabix_output = subprocess.check_output(command.split(), stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as cpe:
+        raise TabixExecutionError(str(cpe), cpe.output)
+
+    output = split_and_remove_empty_lines(tabix_output)
+    if (len(output) == 0):
+        raise CoordinateRangeEmptyError(chromosome, start_coordinate, end_coordinate, "VCF lookup")
+
+    if (len(output) > 1):
+        raise UnexpectedTabixOutputError("expected 1 line, found " + str(len(output)))
+
     result = parse_vcf_line(tabix_output)
     if result.chromosome[3:] != chromosome or result.start != int(coordinate):
-        errmsg = "Asked for " + str(chromosome) + ":" + str(coordinate) + ", got " + str(result.chromosome) + ":" + str(result.coordinate)
-        raise WrongLineFoundError(start_coordinate, end_coordinate, errmsg)
+        errmsg = "got " + str(result.chromosome) + ":" + str(result.start) + ", full line \'" + repr(output) + "\'"
+        raise WrongLineFoundError(chromosome, start_coordinate, end_coordinate, errmsg)
 
     return result
 
@@ -198,7 +211,6 @@ def triotype_singleline_lookup(tabix_path, tsv_path, chromosome, start_coordinat
     try:
         tabix_output = subprocess.check_output(command.split(), stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as cpe:
-        print("cpe = " + str(cpe.output))
         raise TabixExecutionError(str(cpe), cpe.output)
 
     output = split_and_remove_empty_lines(tabix_output)
@@ -210,7 +222,7 @@ def triotype_singleline_lookup(tabix_path, tsv_path, chromosome, start_coordinat
 
     result = parse_triotype_line(tabix_output)
     if result.chromosome[3:] != chromosome or result.start != int(coordinate):
-        errmsg = "got " + str(result.chromosome) + ":" + str(result.coordinate) + ", full line \'" + repr(output) + "\'"
+        errmsg = "got " + str(result.chromosome) + ":" + str(result.start) + ", full line \'" + repr(output) + "\'"
         raise WrongLineFoundError(chromosome, start_coordinate, end_coordinate, errmsg)
 
     return result
