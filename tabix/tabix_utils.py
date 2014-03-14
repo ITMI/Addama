@@ -1,6 +1,7 @@
 import csv
 import StringIO
-from subprocess import check_output
+#from subprocess import check_output, Popen, CalledProcessError
+import subprocess
 
 def query_description(chromosome, start, end):
     return "chr" + str(chromosome) + ":" + str(start) + "-" + str(end)
@@ -30,6 +31,13 @@ class UnexpectedTabixOutputError(Exception):
         self.msg = msg
     def __str__(self):
         return "Tabix - unexpected output: " + repr(self.msg)
+
+class TabixExecutionError(Exception):
+    def __init__(self, error, output=""):
+        self.error = error
+        self.output = output
+    def __str__(self):
+        return "Tabix - execution failed: " + repr(self.output)
 
 class MultilineTabixResult():
     def __init__(self, chromosome, start, end, values, info=None, snpid=None, ref=None, alt=None):
@@ -164,7 +172,7 @@ def vcf_singleline_lookup(tabix_path, vcf_path, chromosome, start_coordinate, en
     coordinate = start_coordinate
     command = create_tabix_command(tabix_path, vcf_path, chromosome, coordinate, coordinate)
     
-    tabix_output = check_output(command.split())
+    tabix_output = subprocess.check_output(command.split())
     result = parse_vcf_line(tabix_output)
     if result.chromosome[3:] != chromosome or result.start != int(coordinate):
         errmsg = "Asked for " + str(chromosome) + ":" + str(coordinate) + ", got " + str(result.chromosome) + ":" + str(result.coordinate)
@@ -184,8 +192,14 @@ def parse_triotype_line(row):
 def triotype_singleline_lookup(tabix_path, tsv_path, chromosome, start_coordinate, end_coordinate):
     coordinate = start_coordinate
     command = create_tabix_command(tabix_path, tsv_path, chromosome, coordinate, coordinate)
-    
-    tabix_output = check_output(command.split())
+
+    tabix_output = None
+
+    try:
+        tabix_output = subprocess.check_output(command.split(), stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as cpe:
+        print("cpe = " + str(cpe.output))
+        raise TabixExecutionError(str(cpe), cpe.output)
 
     output = split_and_remove_empty_lines(tabix_output)
     if (len(output) == 0):
@@ -203,7 +217,7 @@ def triotype_singleline_lookup(tabix_path, tsv_path, chromosome, start_coordinat
 
 def tsv_region_lookup(tabix_path, tsv_path, chromosome, start, end):
     command = create_tabix_command(tabix_path, tsv_path, chromosome, start, end)
-    tabix_output = check_output(command.split())
+    tabix_output = subprocess.check_output(command.split())
     values = parse_region_lookup_result(tabix_output)
     
     return MultilineTabixResult(chromosome, start, end, values)

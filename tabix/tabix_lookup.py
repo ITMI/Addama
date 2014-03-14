@@ -5,7 +5,7 @@ import json
 
 from tabix_utils import tsv_region_lookup, vcf_singleline_lookup, triotype_singleline_lookup
 
-from tabix_utils import CoordinateRangeEmptyError, WrongLineFoundError, UnexpectedTabixOutputError
+from tabix_utils import CoordinateRangeEmptyError, WrongLineFoundError, TabixExecutionError, UnexpectedTabixOutputError
 
 class TabixLookupHandler(tornado.web.RequestHandler):
     def initialize(self):
@@ -91,6 +91,10 @@ class TabixLookupHandler(tornado.web.RequestHandler):
 
         except UnexpectedTabixOutputError as eto:
             logging.error(eto)
+            self.send_error(500)
+
+        except TabixExecutionError as tee:
+            logging.error(tee)
             self.send_error(500)
 
         except Exception as e:
