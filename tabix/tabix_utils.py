@@ -1,7 +1,13 @@
 import csv
 import StringIO
-#from subprocess import check_output, Popen, CalledProcessError
 import subprocess
+
+# #CHROM  POS     ID      REF     ALT     QUAL    FILTER  INFO    FORMAT    <values ..... >
+VCF_SNP_ID_COLUMN_INDEX = 2
+VCF_REF_COLUMN_INDEX = 3
+VCF_ALT_COLUMN_INDEX = 4
+VCF_INFO_COLUMN_INDEX = 7
+VCF_VALUE_START_INDEX = 9
 
 def query_description(chromosome, start, end):
     return "chr" + str(chromosome) + ":" + str(start) + "-" + str(end)
@@ -124,13 +130,7 @@ def create_tabix_command(tabix_path, vcf_path, chromosome, start, end):
     # tabix file.vcf.gz chr1:12345-12345
     return tabix_path + " " + vcf_path + " chr" + str(chromosome) + ":" + str(start) + "-" + str(end)
 
-def parse_vcf_line(row):
-    # #CHROM  POS     ID      REF     ALT     QUAL    FILTER  INFO    FORMAT    <values ..... >
-    VCF_SNP_ID_COLUMN_INDEX = 2
-    VCF_REF_COLUMN_INDEX = 3
-    VCF_ALT_COLUMN_INDEX = 4
-    VCF_INFO_COLUMN_INDEX = 7
-    VCF_VALUE_START_INDEX = 9
+def parse_vcf_line(row, identifiers=None):
 
     split_row = row.split('\t')
     chromosome, coordinate = split_row[:2]
@@ -139,24 +139,33 @@ def parse_vcf_line(row):
     alt = split_row[VCF_ALT_COLUMN_INDEX]
     info_field = split_row[VCF_INFO_COLUMN_INDEX]
     values = map(lambda x: x.strip(), split_row[VCF_VALUE_START_INDEX:])
+    result_values = None
+
+    if identifiers is None:
+        result_values = values
+    else:
+        result_values = {key: value for (key, value) in zip(identifiers, values)}
+
     return MultilineTabixResult(chromosome,
                                 coordinate,
                                 coordinate,
-                                values,
+                                result_values,
                                 info=info_field,
                                 snpid=snpid,
                                 ref=ref,
                                 alt=alt)
 
-def parse_region_lookup_result(data):
+def parse_region_lookup_result(data, header_line_identifier='#', line_filter="##"):
+    lines = [line for line in data if not line.startswith(line_filter)]
+
     reader = csv.DictReader(StringIO.StringIO(data), delimiter='\t')
     values = []
     for row in reader:
         result = {}
-        # Remove leading '#' characters from field keys.
+        # Remove leading header line identifier characters from field keys.
         for key, v in row.iteritems():
-            if key.startswith('#'):
-                result[key.lstrip('#')] = v
+            if key.startswith(header_line_identifier):
+                result[key.lstrip(header_line_identifier)] = v
             else:
                 result[key] = v
 
@@ -193,7 +202,46 @@ def vcf_singleline_lookup(tabix_path, vcf_path, chromosome, start_coordinate, en
 
     return result
 
-def parse_triotype_line(row):
+def get_vcf_lookup_identifiers_from_header(header_line):
+    split_header_line = [value.strip() for value in header_line.split('\t')]
+
+    identifiers = split_header_line[VCF_VALUE_START_INDEX:]
+
+    return identifiers
+
+def vcf_singleline_lookup_with_header(tabix_path, vcf_path, chromosome, start_coordinate, end_coordinate):
+    # Use '-h' flag to include headers in the tabix output.
+    tabix_path = tabix_path + " -h"
+
+    coordinate = start_coordinate
+    command = create_tabix_command(tabix_path, vcf_path, chromosome, coordinate, coordinate)
+
+    tabix_output = None
+
+    try:
+        tabix_output = subprocess.check_output(command.split(), stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as cpe:
+        raise TabixExecutionError(str(cpe), cpe.output)
+
+    line_filter = "##"
+    output = split_and_remove_empty_lines(tabix_output)
+    output = [line for line in output  if not line.startswith(line_filter)]
+
+    if (len(output) == 1):
+        raise CoordinateRangeEmptyError(chromosome, start_coordinate, end_coordinate, "VCF lookup")
+
+    if (len(output) > 2):
+        raise UnexpectedTabixOutputError("expected 2 lines, found " + str(len(output)))
+
+    identifiers = get_vcf_lookup_identifiers_from_header(output[0])
+    result = parse_vcf_line(output[1], identifiers)
+    if result.chromosome[3:] != chromosome or result.start != int(coordinate):
+        errmsg = "got " + str(result.chromosome) + ":" + str(result.start) + ", full line \'" + repr(output) + "\'"
+        raise WrongLineFoundError(chromosome, start_coordinate, end_coordinate, errmsg)
+
+    return result
+
+def parse_triotype_line(row, result_dict=False):
     # CHR POS <values ...>
     TRIOTYPE_VALUE_START_INDEX = 2
 
@@ -221,6 +269,54 @@ def triotype_singleline_lookup(tabix_path, tsv_path, chromosome, start_coordinat
         raise UnexpectedTabixOutputError("expected 1 line, found " + str(len(output)))
 
     result = parse_triotype_line(tabix_output)
+
+    if result.chromosome[3:] != chromosome or result.start != int(coordinate):
+        errmsg = "got " + str(result.chromosome) + ":" + str(result.start) + ", full line \'" + repr(output) + "\'"
+        raise WrongLineFoundError(chromosome, start_coordinate, end_coordinate, errmsg)
+
+    return result
+
+def parse_triotype_lookup_with_headers(data, header_line_identifier='#', line_filter="##"):
+    lines = [line for line in data if not line.startswith(line_filter)]
+
+    header_line = lines[0]
+    split_header_line = [value.strip() for value in header_line.split('\t')]
+
+    value_line = lines[1]
+    split_value_line = [value.strip() for value in value_line.split('\t')]
+
+    chromosome, coordinate = split_value_line[:2]
+
+    identifiers = split_header_line[2:]
+    triotype_values = split_value_line[2:]
+
+    values = {key: value for (key, value) in zip(identifiers, triotype_values)}
+
+    return MultilineTabixResult(chromosome, coordinate, coordinate, values)
+
+def triotype_singleline_lookup_with_header(tabix_path, tsv_path, chromosome, start_coordinate, end_coordinate):
+    # Use '-h' flag to include headers in the tabix output.
+    tabix_path = tabix_path + " -h"
+
+    coordinate = start_coordinate
+    command = create_tabix_command(tabix_path, tsv_path, chromosome, coordinate, coordinate)
+
+    tabix_output = None
+
+    try:
+        tabix_output = subprocess.check_output(command.split(), stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError as cpe:
+        raise TabixExecutionError(str(cpe), cpe.output)
+
+    output = split_and_remove_empty_lines(tabix_output)
+    if (len(output) == 1):
+        raise CoordinateRangeEmptyError(chromosome, start_coordinate, end_coordinate, "triotype lookup")
+
+    if (len(output) > 2):
+        raise UnexpectedTabixOutputError("expected 2 lines, found " + str(len(output)))
+
+    result = parse_triotype_lookup_with_headers(output, header_line_identifier='#', line_filter='##')
+
     if result.chromosome[3:] != chromosome or result.start != int(coordinate):
         errmsg = "got " + str(result.chromosome) + ":" + str(result.start) + ", full line \'" + repr(output) + "\'"
         raise WrongLineFoundError(chromosome, start_coordinate, end_coordinate, errmsg)
