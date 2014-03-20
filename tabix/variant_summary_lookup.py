@@ -46,11 +46,97 @@ def process_triotypes(data, feature):
         })
 
     return {
+        'category_sizes': feature.aggregate,
         'plot_data': plot_data
     }
 
+def process_vcf_sample_data(values, feature, count_map, bar_groups):
+    plot_data = []
+    category_family_members = {}
+
+    for category in FEATURE_CATEGORIES:
+        category_values = []
+
+        for v in values:
+            family_id = v['id'].rsplit('-', 1)[0]
+            if feature.values[family_id] == category:
+                val = v['value']
+                if val in count_map:
+                    category_values.append(count_map[val])
+                else:
+                    category_values.append(val)
+
+        category_family_members[category] = Counter(category_values)
+
+    for groupinfo in bar_groups:
+        cat_data = []
+        grouptype = groupinfo['type']
+
+        for category in FEATURE_CATEGORIES:
+            counts_by_trio_type = category_family_members[category]
+            num = 0
+            category_size = feature.aggregate[category]
+            percentage = 0
+
+            if grouptype in counts_by_trio_type:
+                num = counts_by_trio_type[grouptype]
+
+            if category_size > 0:
+                percentage = float(num) / float(category_size)
+
+            cat_data.append({
+                'name': category,
+                'value': percentage,
+                'count': num
+            })
+
+        plot_data.append({
+            'trio_type': groupinfo['label'],
+            'categories': cat_data
+        })
+
+    return {
+        'category_sizes': feature.aggregate,
+        'plot_data': plot_data
+    }
+
+def process_vcf_NB_or_M(filtered_values, feature):
+    count_map = {
+        '0/1': '0/1 1/0',
+        '1/0': '0/1 1/0'
+    }
+
+    bar_groups = [
+        {
+            'type': '0/0',
+            'label': '0/0'
+        },
+        {
+            'type': '0/1 1/0',
+            'label': '0/1'
+        },
+        {
+            'type': '1/1',
+            'label': '1/1'
+        },
+        {
+            'type': './.',
+            'label': './.'
+        }
+    ]
+
+    return process_vcf_sample_data(filtered_values, feature, count_map, bar_groups)
+
 def process_vcf(data, feature):
-    pass
+    values = [{'id': x[0], 'value': x[1]} for x in data.values.iteritems()]
+
+    m_result = process_vcf_NB_or_M([v for v in values if v['id'].split('-')[2] == 'M'], feature)
+    nb_result = process_vcf_NB_or_M([v for v in values if v['id'].split('-')[2].startswith('NB')], feature)
+
+    return {
+        'm': m_result,
+        'nb': nb_result
+    }
 
 ########################
 # Data loading methods #
