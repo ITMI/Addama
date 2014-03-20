@@ -16,7 +16,7 @@ def process_triotypes(data, feature):
     category_trio_types = {}
     values = [{'id': x[0], 'value': x[1]} for x in data.values.iteritems()]
     for category in FEATURE_CATEGORIES:
-        category_values = [x['value'] for x in values if feature[x['id']] == category]
+        category_values = [x['value'] for x in values if feature.values[x['id']] == category]
         category_trio_types[category] = Counter(category_values)
 
     for mtype in TRIO_TYPES:
@@ -24,13 +24,19 @@ def process_triotypes(data, feature):
 
         for category in FEATURE_CATEGORIES:
             counts_by_trio_type = category_trio_types[category]
+            category_size = feature.aggregate[category]
             num = 0
+            percentage = 0
 
             if mtype in counts_by_trio_type:
                 num = counts_by_trio_type[mtype]
 
+            if category_size > 0:
+                percentage = float(num) / float(category_size)
+
             cat_data.append({
                 'name': category,
+                'value': percentage,
                 'count': num
             })
 
@@ -42,6 +48,9 @@ def process_triotypes(data, feature):
     return {
         'plot_data': plot_data
     }
+
+def process_vcf(data, feature):
+    pass
 
 ########################
 # Data loading methods #
@@ -55,14 +64,21 @@ def get_vcf_data(tabix_exe, data_file_path, chromosome, coordinate):
     result = vcf_singleline_lookup_with_header(tabix_exe, data_file_path, chromosome, coordinate, coordinate)
     return result
 
+#############
+# Query API #
+#############
+
 def do_query(configuration, chromosome_digit, coordinate, feature_id):
     chromosome = str(chromosome_digit)
     tabix_exe = "tabix"
-    triotypes = get_triotype_data(tabix_exe, configuration['triotype_file'], chromosome, coordinate)
-    vcf_data = get_vcf_data(tabix_exe, configuration['vcf_file'], chromosome, coordinate)
 
     feature = feature_data_source.get_feature_by_id(configuration['feature_matrix'], feature_id)
+
+    triotypes = get_triotype_data(tabix_exe, configuration['triotype_file'], chromosome, coordinate)
     triotype_response = process_triotypes(triotypes, feature)
+
+    vcf_data = get_vcf_data(tabix_exe, configuration['vcf_file'], chromosome, coordinate)
+    vcf_response = process_vcf(vcf_data, feature)
 
 def main():
     mainparser = argparse.ArgumentParser(description="Variant summary service")
