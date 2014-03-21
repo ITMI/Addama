@@ -38,6 +38,7 @@ from scc.github import GitWebHookHandler
 
 from tabix.tabix_lookup import TabixLookupHandler
 from tabix.seqpeek_data_lookup import SeqPeekDataHandler
+from tabix.variant_summary_handler import VariantSummaryHandler
 
 define("data_path", default="../..", help="Path to data files")
 define("port", default=8000, help="run on the given port", type=int)
@@ -65,6 +66,7 @@ define("verbose", default=False, type=bool, help="Enable verbose printouts")
 define("tabix_executable", default="tabix", help="Tabix executable")
 define("tabix_lookups", default={}, help="Tabix lookups configurations")
 define("seqpeek_data_lookups", default={}, help="SeqPeek data lookups configurations")
+define("variant_summary_sources", default={}, help="Variant Summary configurations")
 
 settings = {
     "debug": True,
@@ -163,8 +165,26 @@ def parse_seqpeek_data_configuration():
         else:
             seqpeek_data_map[seqpeek_data_id] = config
             logging.info("SeqPeek data lookup \'" + seqpeek_data_id + "\' enabled.")
-    
+
     return seqpeek_data_map
+
+
+def parse_variant_summary_configuration():
+    REQUIRED_KEYS = set(['tabix_executable', 'vcf_file', 'triotype_file', 'feature_matrix'])
+    data_map = {}
+    for data_id, config in options.variant_summary_sources.iteritems():
+        if len(config.keys()) == 0:
+            logging.warn("Variant Summary lookup \'" + data_id + "\' disabled - empty configuration.")
+            continue
+
+        if set(config.keys()).issubset(REQUIRED_KEYS):
+            data_map[data_id] = config
+            logging.info("Variant Summary lookup \'" + data_id + "\' enabled.")
+
+        else:
+            logging.warn("Variant Summary lookup \'" + data_id + "\' disabled - missing fields in configuration.")
+
+    return data_map
 
 
 def main():
@@ -207,7 +227,9 @@ def main():
     TabixLookupHandler.tabix_file_map = parse_tabix_lookup_configuration()
 
     SeqPeekDataHandler.seqpeek_data_map = parse_seqpeek_data_configuration()
-    
+
+    VariantSummaryHandler.data_map = parse_variant_summary_configuration()
+
     application = tornado.web.Application([
         (r"/", MainHandler),
         (r"/auth/signin/google", GoogleOAuth2Handler),
@@ -223,6 +245,7 @@ def main():
         (r"/tabix/(\w+)/(X|Y|M|\d{1,2})/(\d+)", TabixLookupHandler),
         (r"/tabix/(\w+)/(X|Y|M|\d{1,2})/(\d+)/(\d+)", TabixLookupHandler),
         (r"/seqpeek_data/(.*)", SeqPeekDataHandler),
+        (r"/variant_summary/(.*)", VariantSummaryHandler),
         (r"/gitWebHook?(.*)", GitWebHookHandler)
     ], **settings)
     application.listen(options.port, **server_settings)
