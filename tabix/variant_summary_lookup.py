@@ -4,7 +4,6 @@ import argparse
 
 from tabix_utils import vcf_singleline_lookup_with_header, triotype_singleline_lookup_with_header
 import feature_data_source
-from tabix_utils import CoordinateRangeEmptyError, WrongLineFoundError, TabixExecutionError, UnexpectedTabixOutputError
 
 CHROMOSOME_SET = frozenset([str(x) for x in xrange(1, 23)] + list(['M', 'X', 'Y']))
 TRIO_TYPES = ['12','21','22','31','40','41','42','50','51','60','NA','MIE']

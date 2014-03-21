@@ -4,6 +4,13 @@ import json
 
 from pymongo import MongoClient
 
+class FeatureNotFoundError(Exception):
+    def __init__(self, feature_id):
+        self.id = feature_id
+
+    def __str__(self):
+        return "Feature not found - ID \'" + str(self.id) + "\'"
+
 class FeatureData:
     def __init__(self, feature_id, value_dict):
         self.id = feature_id
@@ -25,10 +32,12 @@ def get_feature_by_id_from_json(config, param_feature_id):
     for index, (feature_id, text_name) in zip(xrange(len(feature_list)), feature_list):
         feature_map[feature_id] = dict(zip(sample_ids, feature_value_arrays[index]))
 
-    return feature_map[param_feature_id]
+    if param_feature_id in feature_map:
+        return feature_map[param_feature_id]
+    else:
+        raise FeatureNotFoundError(param_feature_id)
 
 def get_feature_by_id_from_mongodb(config, feature_id):
-
     client = create_mongo_connection(config['host'])
     db = client[config['database']]
     feature_matrix_collection = db[config['collection']]
@@ -39,7 +48,10 @@ def get_feature_by_id_from_mongodb(config, feature_id):
     for feature in feature_matrix_collection.find(query):
         all_features[feature["id"]] = feature["v"]
 
-    return all_features[feature_id]
+    if feature_id in all_features:
+        return all_features[feature_id]
+    else:
+        raise FeatureNotFoundError(feature_id)
 
 def get_feature_by_id(config, feature_id):
     matrix_datasource_type = config['type']

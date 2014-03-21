@@ -5,6 +5,9 @@ import json
 
 import variant_summary_lookup as vsl
 
+from tabix_utils import CoordinateRangeEmptyError, WrongLineFoundError, TabixExecutionError, UnexpectedTabixOutputError
+from feature_data_source import FeatureNotFoundError
+
 REQUIRED_ARGUMENTS = frozenset(['chromosome', 'coordinate', 'feature_id'])
 
 class VariantSummaryHandler(tornado.web.RequestHandler):
@@ -37,8 +40,16 @@ class VariantSummaryHandler(tornado.web.RequestHandler):
             self.send_error(400)
             return
 
-        chromosome = int(self.get_argument("chromosome"))
-        coordinate = int(self.get_argument("coordinate"))
+        chromosome = self.get_argument("chromosome")
+        coordinate = None
+
+        try:
+            coordinate = int(self.get_argument("coordinate"))
+        except ValueError:
+            logging.error("Variant Summary - invalid value for coordinate: " + str(self.get_argument("coordinate")))
+            self.send_error(400)
+            return
+
         feature_id = self.get_argument("feature_id")
 
         logging.debug("Querying Variant Summary for \'" + str((chromosome, coordinate, feature_id)) + "\'")
@@ -46,6 +57,28 @@ class VariantSummaryHandler(tornado.web.RequestHandler):
         try:
             result = vsl.do_query(config, chromosome, coordinate, feature_id)
             self.write(json.dumps(result, sort_keys=True))
+            self.set_status(200)
+
+        except CoordinateRangeEmptyError as cnf:
+            logging.info(cnf)
+            self.write(json.dumps({}, sort_keys=True))
+            self.set_status(200)
+
+        except WrongLineFoundError as wlf:
+            logging.error(wlf)
+            self.send_error(500)
+
+        except UnexpectedTabixOutputError as eto:
+            logging.error(eto)
+            self.send_error(500)
+
+        except TabixExecutionError as tee:
+            logging.error(tee)
+            self.send_error(500)
+
+        except FeatureNotFoundError as fnf:
+            logging.info(fnf)
+            self.write(json.dumps({}, sort_keys=True))
             self.set_status(200)
 
         except Exception as e:
