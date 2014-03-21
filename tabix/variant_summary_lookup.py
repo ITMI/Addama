@@ -11,12 +11,34 @@ TRIO_TYPES = ['12','21','22','31','40','41','42','50','51','60','NA','MIE']
 
 FEATURE_CATEGORIES = ["false", "true"]
 
+class BarGroup:
+    def __init__(self, type, label):
+        self.type = type
+        self.label = label
+
+class VCFValue:
+    def __init__(self, id, value):
+        self.id = id
+        self.value = value
+
+DEFAULT_COUNT_MAP = {
+    '0/1': '0/1 1/0',
+    '1/0': '0/1 1/0'
+}
+
+DEFAULT_BAR_GROUPS = [
+    BarGroup('0/0', '0/0'),
+    BarGroup('0/1 1/0', '0/1'),
+    BarGroup('1/1', '1/1'),
+    BarGroup('./.', './.')
+]
+
 def process_triotypes(data, feature):
     plot_data = []
     category_trio_types = {}
-    values = [{'id': x[0], 'value': x[1]} for x in data.values.iteritems()]
+    values = [VCFValue(x[0], x[1]) for x in data.values.iteritems()]
     for category in FEATURE_CATEGORIES:
-        category_values = [x['value'] for x in values if feature.values[x['id']] == category]
+        category_values = [x.value for x in values if feature.values[x.id] == category]
         category_trio_types[category] = Counter(category_values)
 
     for mtype in TRIO_TYPES:
@@ -58,19 +80,18 @@ def process_vcf_sample_data(values, feature, count_map, bar_groups):
         category_values = []
 
         for v in values:
-            family_id = v['id'].rsplit('-', 1)[0]
+            family_id = v.id.rsplit('-', 1)[0]
             if feature.values[family_id] == category:
-                val = v['value']
-                if val in count_map:
-                    category_values.append(count_map[val])
+                if v.value in count_map:
+                    category_values.append(count_map[v.value])
                 else:
-                    category_values.append(val)
+                    category_values.append(v.value)
 
         category_family_members[category] = Counter(category_values)
 
     for groupinfo in bar_groups:
         cat_data = []
-        grouptype = groupinfo['type']
+        grouptype = groupinfo.type
 
         for category in FEATURE_CATEGORIES:
             counts_by_trio_type = category_family_members[category]
@@ -91,7 +112,7 @@ def process_vcf_sample_data(values, feature, count_map, bar_groups):
             })
 
         plot_data.append({
-            'trio_type': groupinfo['label'],
+            'trio_type': groupinfo.label,
             'categories': cat_data
         })
 
@@ -100,40 +121,33 @@ def process_vcf_sample_data(values, feature, count_map, bar_groups):
         'plot_data': plot_data
     }
 
+def process_vcf_F(filtered_values, feature, chromosome_digit):
+    if chromosome_digit in ['X', 'Y', 'M']:
+        count_map = {}
+
+        bar_groups = [
+            BarGroup('0', 'Reference'),
+            BarGroup('1', 'Non-Reference'),
+            BarGroup('.', 'Missing data')
+        ]
+
+        return process_vcf_sample_data(filtered_values, feature, count_map, bar_groups)
+    else:
+        return process_vcf_sample_data(filtered_values, feature, DEFAULT_COUNT_MAP, DEFAULT_BAR_GROUPS)
+
+
 def process_vcf_NB_or_M(filtered_values, feature):
-    count_map = {
-        '0/1': '0/1 1/0',
-        '1/0': '0/1 1/0'
-    }
+    return process_vcf_sample_data(filtered_values, feature, DEFAULT_COUNT_MAP, DEFAULT_BAR_GROUPS)
 
-    bar_groups = [
-        {
-            'type': '0/0',
-            'label': '0/0'
-        },
-        {
-            'type': '0/1 1/0',
-            'label': '0/1'
-        },
-        {
-            'type': '1/1',
-            'label': '1/1'
-        },
-        {
-            'type': './.',
-            'label': './.'
-        }
-    ]
+def process_vcf(data, feature, chromosome_digit):
+    values = [VCFValue(x[0], x[1]) for x in data.values.iteritems()]
 
-    return process_vcf_sample_data(filtered_values, feature, count_map, bar_groups)
-
-def process_vcf(data, feature):
-    values = [{'id': x[0], 'value': x[1]} for x in data.values.iteritems()]
-
-    m_result = process_vcf_NB_or_M([v for v in values if v['id'].split('-')[2] == 'M'], feature)
-    nb_result = process_vcf_NB_or_M([v for v in values if v['id'].split('-')[2].startswith('NB')], feature)
+    f_result = process_vcf_F([v for v in values if v.id.split('-')[2] == 'F'], feature, chromosome_digit)
+    m_result = process_vcf_NB_or_M([v for v in values if v.id.split('-')[2] == 'M'], feature)
+    nb_result = process_vcf_NB_or_M([v for v in values if v.id.split('-')[2].startswith('NB')], feature)
 
     return {
+        'f': f_result,
         'm': m_result,
         'nb': nb_result
     }
@@ -156,7 +170,7 @@ def get_vcf_data(tabix_exe, data_file_path, chromosome, coordinate):
 
 def do_query(configuration, chromosome_digit, coordinate, feature_id):
     chromosome = str(chromosome_digit)
-    tabix_exe = "tabix"
+    tabix_exe = configuration['tabix_executable']
 
     feature = feature_data_source.get_feature_by_id(configuration['feature_matrix'], feature_id)
 
@@ -164,7 +178,12 @@ def do_query(configuration, chromosome_digit, coordinate, feature_id):
     triotype_response = process_triotypes(triotypes, feature)
 
     vcf_data = get_vcf_data(tabix_exe, configuration['vcf_file'], chromosome, coordinate)
-    vcf_response = process_vcf(vcf_data, feature)
+    vcf_response = process_vcf(vcf_data, feature, chromosome_digit)
+
+    return {
+        'triotypes': triotype_response,
+        'vcf': vcf_response
+    }
 
 def main():
     mainparser = argparse.ArgumentParser(description="Variant summary service")
